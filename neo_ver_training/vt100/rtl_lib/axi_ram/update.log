@@ -1,0 +1,249 @@
+Index: axi2ram_addr_gen.v
+===================================================================
+--- axi2ram_addr_gen.v	(revision 3893)
++++ axi2ram_addr_gen.v	(working copy)
+@@ -35,7 +35,7 @@
+     /*---------------------------------------------------*/
+     /*  generate axi_axch_fifo pop and recovery axi info */
+     /*---------------------------------------------------*/
+-    assign axch_pop = ~axch_empty & (addr_cnt == axi_axlen);
++    assign axch_pop = ~axch_empty & (addr_cnt == axi_axlen) & ~ram_cmd_full;
+     assign {axi_axid, axi_axaddr, axi_axlen, axi_axsize, axi_axburst} = axch_info;
+ 
+     reg [7:0]               addr_incr_step;
+@@ -64,8 +64,8 @@
+     assign single_access = (axi_axlen == 0);
+     assign access_start = (addr_cnt == 0);
+     assign access_last = ~axch_empty & (addr_cnt == axi_axlen);
+-    assign addr_cnt_en = ~axch_empty;
+-    assign addr_cnt_clr = (addr_cnt == axi_axlen);
++    assign addr_cnt_en = ~axch_empty & ~ram_cmd_full;
++    assign addr_cnt_clr = (addr_cnt == axi_axlen) & ~ram_cmd_full;
+     always @(posedge aclk_s or negedge rst_n) begin
+         if(~rst_n) begin
+             addr_cnt <= 8'h0;
+
+@@ -121,7 +121,7 @@
+     /*------------------------------------------------*/
+     /*  generate ram cmd address and id info          */
+     /*------------------------------------------------*/
+-    assign ram_addr = access_start ? axi_axaddr[RAM_BW+:(C_RAM_AW+1)] : wrap_addr[RAM_BW+:(C_RAM_AW)];
++    assign ram_addr = access_start ? axi_axaddr[RAM_BW+:(C_RAM_AW+1)] : wrap_addr[RAM_BW+:(C_RAM_AW+1)];
+     assign ram_cmd_info = {access_last, axi_axid, ram_addr};
+ 
+Index: axi_slave_if.v
+===================================================================
+--- axi_slave_if.v	(revision 3893)
++++ axi_slave_if.v	(working copy)
+@@ -111,6 +111,7 @@
+         .din                (awch_info_i),
+         .dout               (awch_info_o),
+         .full               (awch_full),
++        .awfull             (),
+         .empty              (awch_empty)
+     );
+ 
+@@ -137,6 +138,7 @@
+         .din                (wch_info_i),
+         .dout               (wch_info_o),
+         .full               (wch_full),
++        .awfull             (),
+         .empty              (wch_empty)
+     );
+ 
+@@ -163,6 +165,7 @@
+         .din                (bch_info_i),
+         .dout               (bch_info_o),
+         .full               (bch_full),
++        .awfull             (),
+         .empty              (bch_empty)
+     );
+ 
+@@ -189,6 +192,7 @@
+         .din                (arch_info_i),
+         .dout               (arch_info_o),
+         .full               (arch_full),
++        .awfull             (),
+         .empty              (arch_empty)
+     );
+ 
+@@ -204,7 +208,7 @@
+     assign {rid_s, rdata_s, rresp_s, rlast_s} = rch_info_o;
+     cmm_sfifo #(
+         .C_HF       (16),
+-        .C_HAF      (8),
++        .C_HAF      (14),
+         .C_AW       (4),
+         .C_DW       (C_ID+C_DW+2)
+     ) u_rch_fifo (
+@@ -214,7 +218,8 @@
+         .pop                (rch_pop),
+         .din                (rch_info_i),
+         .dout               (rch_info_o),
+-        .full               (rch_full),
++        .full               (),
++        .awfull             (rch_full),
+         .empty              (rch_empty)
+     );
+ 
+Index: cmm_axi2ram.v
+===================================================================
+--- cmm_axi2ram.v	(revision 3893)
++++ cmm_axi2ram.v	(working copy)
+@@ -103,7 +103,7 @@
+     wire                        wr_ram_wr_ack;
+     wire                        wr_ram_wr_req;
+     wire [C_RAW:0]              wr_ram_addr;    //actual width is C_RAW+1, bit0 use to interleave
+-    wire [C_ID:0]               wr_axi_id;
++    wire [C_ID-1:0]             wr_axi_id;
+     wire                        rd_ram_rd_ack;
+     wire                        rd_ram_rd_req;
+     wire [C_RAW:0]              rd_ram_addr;    //actual width is C_RAW+1, bit0 use to interleave
+@@ -438,6 +438,7 @@
+         .ram_cmd_push                   (rd_ram_cmd_push                            ), // input
+         .ram_rd_ack                     (rd_ram_rd_ack                              ), // input
+         .rdata_fifo_full                (rch_full                                   ), // input
++        .ram_vld                        (|r_rvld                                    ), // input
+         .ram_cmd_full                   (rd_ram_cmd_full                            ), // output
+         .ram_rd_req                     (rd_ram_rd_req                              ), // output
+         .ram_addr                       (rd_ram_addr                                ), // output
+
+Index: cmm_sfifo.v
+===================================================================
+--- cmm_sfifo.v	(revision 3893)
++++ cmm_sfifo.v	(working copy)
+@@ -5,7 +5,7 @@
+     parameter   C_DW = 32
+ )(
+     //Outputs
+-    dout, full, empty,
++    dout, full, empty, awfull,
+     //Inputs
+     clk, rst_n, push, pop, din
+ );
+@@ -18,6 +18,7 @@
+     output [C_DW-1:0]       dout;
+     output                  full;
+     output                  empty;
++    output                  awfull;
+ 
+     wire [C_AW-1:0]         waddr;
+     wire [C_AW-1:0]         raddr;
+@@ -36,7 +37,7 @@
+         .waddr					(waddr),
+         .wleft					(),
+         .wfull					(full),
+-        .awfull					(),
++        .awfull					(awfull),
+         .oflw					(),
+         .re					    (re),
+         .raddr					(raddr),
+
+Index: ram_rcmd_fifo.v
+===================================================================
+--- ram_rcmd_fifo.v	(revision 3893)
++++ ram_rcmd_fifo.v	(working copy)
+@@ -7,7 +7,7 @@
+     axi_last,
+     //Inputs
+     aclk_s, rst_n, ram_cmd_info_i, ram_cmd_push,
+-    ram_rd_ack, rdata_fifo_full
++    ram_rd_ack, rdata_fifo_full, ram_vld
+ );
+ 
+     localparam CMD_INFO_W = C_ID+C_RAM_AW+1+1;
+@@ -18,6 +18,7 @@
+     input                       ram_cmd_push;
+     input                       ram_rd_ack;
+     input                       rdata_fifo_full;
++    input                       ram_vld;
+ 
+     output                      ram_cmd_full;
+     output                      ram_rd_req;
+@@ -33,23 +34,44 @@
+ 
+     assign ram_addr = ram_cmd_info_o[C_RAM_AW:0];
+ 
+-    always @(posedge aclk_s or negedge rst_n) begin
+-        if(~rst_n) begin
+-            axi_id <= {C_ID{1'b0}};
+-            axi_last <= 1'b0;
+-        end
+-        else if(ram_rd_ack) begin
+-            axi_id <= ram_cmd_info_o[(C_RAM_AW+1)+:C_ID];
+-            axi_last <= ram_cmd_info_o[CMD_INFO_W-1];
+-        end
+-    end
++    //to match RL=1/2
++    wire [C_ID-1:0]              axi_id_fin;
++    wire                         axi_last_fin;
++    assign axi_id_fin = ram_cmd_info_o[(C_RAM_AW+1)+:C_ID];
++    assign axi_last_fin = ram_cmd_info_o[CMD_INFO_W-1];
++    cmm_sfifo #(
++        .C_HF       (4),
++        .C_HAF      (2),
++        .C_AW       (2),
++        .C_DW       (C_ID+1)
++    ) u_rinfo_match_fifo (
++        .clk                (aclk_s),
++        .rst_n              (rst_n),
++        .push               (ram_rd_ack),
++        .pop                (ram_vld),
++        .din                ({axi_id_fin, axi_last_fin}),
++        .dout               ({axi_id, axi_last}),
++        .full               (),
++        .awfull             (),
++        .empty              ());
+ 
++    //always @(posedge aclk_s or negedge rst_n) begin
++    //    if(~rst_n) begin
++    //        axi_id <= {C_ID{1'b0}};
++    //        axi_last <= 1'b0;
++    //    end
++    //    else if(ram_rd_ack) begin
++    //        axi_id <= ram_cmd_info_o[(C_RAM_AW+1)+:C_ID];
++    //        axi_last <= ram_cmd_info_o[CMD_INFO_W-1];
++    //    end
++    //end
++
+     assign ram_cmd_pop = ram_rd_ack & ~ram_cmd_empty;
+     assign ram_rd_req = ~ram_cmd_empty & ~rdata_fifo_full;
+ 
+     cmm_sfifo #(
+         .C_HF       (8),
+         .C_HAF      (4),
+         .C_AW       (3),
+         .C_DW       (CMD_INFO_W)
+     ) u_rcmd_fifo (
+@@ -60,6 +82,7 @@
+         .din                (ram_cmd_info_i),
+         .dout               (ram_cmd_info_o),
+         .full               (ram_cmd_full),
++        .awfull             (),
+         .empty              (ram_cmd_empty));
+ 
+ endmodule
+
+Index: ram_wcmd_fifo.v
+===================================================================
+--- ram_wcmd_fifo.v	(revision 3893)
++++ ram_wcmd_fifo.v	(working copy)
+@@ -20,8 +20,8 @@
+ 
+     output                      ram_cmd_full;
+     output                      ram_wr_req;
+-    output [C_RAM_AW:0]         ram_addr;
+-    output [C_ID:0]             axi_id;
++    output [C_RAM_AW-1:0]       ram_addr;
++    output [C_ID-1:0]           axi_id;
+ 
+     wire [CMD_INFO_W-1:0]       ram_cmd_info_o;
+     wire                        ram_cmd_pop;
+@@ -50,6 +50,7 @@
+         .din                (ram_cmd_info_i),
+         .dout               (ram_cmd_info_o),
+         .full               (ram_cmd_full),
++        .awfull             (),
+         .empty              (ram_cmd_empty));
+ 
+ endmodule

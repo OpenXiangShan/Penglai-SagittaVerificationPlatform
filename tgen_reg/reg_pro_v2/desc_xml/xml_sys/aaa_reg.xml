@@ -1,0 +1,71 @@
+<all_register>
+   <subblock>
+       <subblock_name>aaa_regs</subblock_name>
+       <register>
+           <reg_name>BBB</reg_name>
+           <reg_offset>0x0008</reg_offset>
+           <reg_type>register</reg_type>
+           <reg_width>32</reg_width>
+           <field>
+               <field_name>CCC</field_name>
+               <field_offset>0</field_offset>
+               <field_width>1</field_width>
+               <field_access>W1C</field_access>
+               <field_init_value>0x0</field_init_value>
+               <field_description>              xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+            </field_description>
+           </field>
+           <field>
+               <field_name>DDD</field_name>
+               <field_offset>1</field_offset>
+               <field_width>1</field_width>
+               <field_access>W1C</field_access>
+               <field_init_value>0x0</field_init_value>
+               <field_description>                xxxxxxxxxxxxxxxxxxxxxxxxxxx
+             </field_description>
+           </field>
+           <field>
+               <field_name>EEE</field_name>
+               <field_offset>2</field_offset>
+               <field_width>1</field_width>
+               <field_access>W1C</field_access>
+               <field_init_value>0x0</field_init_value>
+               <field_description>                xxxxxxxxxx
+             </field_description>
+           </field>
+       </register>
+       <register>
+           <reg_name>FFF</reg_name>
+           <reg_offset>0x000C</reg_offset>
+           <reg_type>register</reg_type>
+           <reg_width>32</reg_width>
+           <field>
+               <field_name>GGG</field_name>
+               <field_offset>0</field_offset>
+               <field_width>1</field_width>
+               <field_access>RWHW</field_access>
+               <field_init_value>0x0</field_init_value>
+               <field_description>               xxxxxxxxxxxxxxxxxxxxxxxxxxx
+            </field_description>
+           </field>
+           <field>
+               <field_name>GGG</field_name>
+               <field_offset>1</field_offset>
+               <field_width>1</field_width>
+               <field_access>RWHW</field_access>
+               <field_init_value>0x0</field_init_value>
+               <field_description>               xxxxxxxxxxxxxxxxxxxxxxxxxxxxx 
+            </field_description>
+           </field>
+           <field>
+               <field_name>III</field_name>
+               <field_offset>2</field_offset>
+               <field_width>1</field_width>
+               <field_access>RWHW</field_access>
+               <field_init_value>0x0</field_init_value>
+               <field_description>              xxxxxxxxxxxxxxxxxxxxxxxx
+            </field_description>
+           </field>
+       </register>
+   </subblock>
+</all_register>
